@@ -1,0 +1,400 @@
+MPASM 02.15 Released         RFREMOTE.ASM   8-24-1998  22:06:22         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                    00001         LIST    p=PIC16C54A
+                    00002 
+  00000000          00003 ind0    equ     00h             ; index register
+  00000001          00004 rtcc    equ     01h             ; real time clock counter
+  00000002          00005 pcl     equ     02h             ; program counter low byte
+  00000003          00006 status  equ     03h             ; status register
+  00000004          00007 fsr     equ     04h             ; file select register
+  00000005          00008 porta   equ     05h             ; port A
+  00000006          00009 portb   equ     06h             ; port B
+                    00010 
+  00000000          00011 C       equ     0               ; status register CARRY bit
+  00000002          00012 Z       equ     2               ; ZERO bit
+                    00013 
+  00000000          00014 W       equ     0               ; W is destination
+  00000001          00015 F       equ     1               ; F is destination
+                    00016 
+  00000005          00017 RCVDAT  equ     5               ; port b bit that receives rf data
+                    00018 
+  00000005          00019 OPTVAL  equ     05h             ; OPTION reg.
+                    00020 
+                    00021 ; Hi sync is 9ms +/- 10%
+  0000006D          00022 MINHS   equ     6dh             ; minimum length of high sync pulse 7 ms
+  000000AB          00023 MAXHS   equ     0abh            ; max length of high sync pulse 11 ms
+                    00024 ; Lo sync is 4.8 ms +/- 10%
+  0000003E          00025 MINLS   equ     3eh             ; minimum length of low sync pulse 4 ms
+  00000057          00026 MAXLS   equ     57h             ; max length of low sync pulse 5.6 ms
+                    00027 ; data pulse length
+                    00028 ; minimum .9 ms
+                    00029 ; maximum 2.8ms
+  0000000E          00030 MINDAT  equ     0eh
+  0000002B          00031 MAXDAT  equ     2bh
+                    00032 ; treshold of "0"/"1" data = 1.73ms
+  0000001B          00033 DAT     equ     1bh
+                    00034 
+                    00035 ; ERROR PROCEDURE CONSTANTS
+  000000D8          00036 HISYNC  equ     0d8h            ; 9 ms
+  0000006C          00037 LOSYNC  equ     6ch             ; 4.8 ms
+  00000009          00038 HIPULS  equ     9h              ; 330 us
+  00000015          00039 ZERO    equ     15h             ; 800 us
+  00000036          00040 ONE     equ     36h             ; 2 ms
+  00000064          00041 LONGDEL equ     64h
+  00000004          00042 LODELV  equ     04h
+  00000007          00043 EBIT    equ     7               ; bit of port b on which to send error data
+                    00044 
+                    00045 ; REGISTERS
+  0000000C          00046 ECODE   equ     0ch
+  0000000D          00047 bitcnt  equ     0dh             ; bit counter for received data
+  0000000E          00048 bytecnt equ     0eh             ; byte counter for received data
+  0000000F          00049 lstcntr equ     0fh             ; last rtcc value
+  00000010          00050 MY_ID   equ     10h             ; space for unit address
+  00000011          00051 RCVDATA equ     11h             ; space for received data
+  00000015          00052 ecnt    equ     15h             ; error transmit procedure bit counter
+  00000016          00053 ebcnt   equ     16h             ; error transmit byte counter
+MPASM 02.15 Released         RFREMOTE.ASM   8-24-1998  22:06:22         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+  00000017          00054 hidel   equ     17h             ; delay counters
+  00000018          00055 lodel   equ     18h
+                    00056 
+                    00057 ; prescaller on RTCC, 1:64 -> 64us/cycle
+                    00058 
+  000001FF          00059 rset    equ     01ffh           ; reset vector for PIC16C54A
+                    00060 
+                    00061 ;       org     rset
+                    00062 ;       goto    0
+                    00063 
+0000                00064         org     0
+0000 0C0A           00065         movlw   0ah             ; initial state of port A outputs
+0001 0025           00066         movwf   porta
+0002 0040           00067         clrw
+0003 0005           00068         tris    porta           ; port a all outputs
+0004 0C06           00069         movlw   portb
+0005 0C7F           00070         movlw   07fh
+0006 0006           00071         tris    portb           ; port b all inputs except for bit 7 status output
+0007 0C05           00072         movlw   OPTVAL          ; configure option register
+0008 0002           00073         option
+0009 0C80           00074         movlw   80h
+000A 0A12           00075         goto    err
+                    00076 
+000B 0386           00077 main    swapf   portb,W         ; read address jumpers
+000C 0D0F           00078         iorlw   0fh             ; keep only high nybble
+000D 0786           00079         btfss   portb,4         ; is jumper for MSB high?
+000E 0EF7           00080         andlw   0f7h            ; yes, set bit 3 in MY_ID
+000F 0030           00081         movwf   MY_ID
+0010 0270           00082         comf    MY_ID,F         ; jumpers open ("0") are pulled high, invet them
+                    00083 
+0011 0942           00084         call    rcvdata         ; try to receive data
+                    00085 
+0012 002C           00086 err     movwf   ECODE           ; store error code there
+0013 0C0C           00087         movlw   ECODE           ; point to first byte to be sent
+0014 0024           00088         movwf   fsr
+0015 05E6           00089         bsf     portb,EBIT      ; start hi sync pulse
+0016 0004           00090         clrwdt
+0017 0CD8           00091         movlw   HISYNC
+0018 093A           00092         call    delay
+0019 04E6           00093         bcf     portb,EBIT
+001A 0004           00094         clrwdt
+001B 0C6C           00095         movlw   LOSYNC
+001C 093A           00096         call    delay
+001D 0C01           00097 snd     movlw   1               ; number of registers to be sent
+001E 07EC           00098         btfss   ECODE,7
+001F 0C09           00099         movlw   9
+0020 0036           00100         movwf   ebcnt
+0021 0C08           00101 sndbyt  movlw   8               ; 8 bits each
+0022 0035           00102         movwf   ecnt
+0023 0004           00103 sndbit  clrwdt
+0024 05E6           00104         bsf     portb,EBIT
+0025 0C09           00105         movlw   HIPULS
+0026 093A           00106         call    delay
+MPASM 02.15 Released         RFREMOTE.ASM   8-24-1998  22:06:22         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0027 04E6           00107         bcf     portb,EBIT
+0028 0C15           00108         movlw   ZERO
+0029 06E0           00109         btfsc   ind0,7
+002A 0C36           00110         movlw   ONE
+002B 093A           00111 snddel  call    delay
+002C 0360           00112         rlf     ind0,F
+002D 00F5           00113         decf    ecnt,F
+002E 0743           00114         btfss   status,Z
+002F 0A23           00115         goto    sndbit
+0030 02A4           00116 sentbyt incf    fsr,F
+0031 00F6           00117         decf    ebcnt,F
+0032 0743           00118         btfss   status,Z
+0033 0A21           00119         goto    sndbyt
+0034 05E6           00120 final   bsf     portb,EBIT
+0035 0C09           00121         movlw   HIPULS
+0036 093A           00122         call    delay
+0037 04E6           00123         bcf     portb,EBIT
+0038 0004           00124         clrwdt
+0039 0A0B           00125         goto    main            ; back to main loop
+                    00126 
+003A 0037           00127 delay   movwf   hidel           ; 1
+003B 0C04           00128 hdel    movlw   LODELV          ; 1                             }
+003C 0038           00129         movwf   lodel           ; 1                             }
+003D 02F8           00130 ldel    decfsz  lodel,F         ; 1/2   lodel+1 }               }
+003E 0A3D           00131         goto    ldel            ; 2             }3lodel-1       }
+003F 02F7           00132         decfsz  hidel,F         ; 1/2                           }(3lodel-1+5)hidel+1
+0040 0A3B           00133         goto    hdel            ; 2                             }
+0041 0800           00134 ret     return                  ; 2
+                    00135 
+0042 0C11           00136 rcvdata movlw   RCVDATA         ; setup receive data buffer
+0043 0024           00137         movwf   fsr
+0044 06A6           00138 hsync   btfsc   portb,RCVDAT    ; wait for a high pulse
+0045 0A48           00139         goto    gothsyn         ; got high sync bit or at least think so
+0046 0004           00140         clrwdt                  ; still waiting, clear watchdog
+0047 0A44           00141         goto    hsync           ; continue loop
+0048 0061           00142 gothsyn clrf    rtcc            ; clear counter
+0049 07A6           00143 wlosyn  btfss   portb,RCVDAT    ; wait for the pulse to end (9 ms)
+004A 0A4D           00144         goto    gotlsyn         ; got low sync bit
+004B 0004           00145         clrwdt
+004C 0A49           00146         goto    wlosyn          ; continue loop
+004D 0201           00147 gotlsyn movf    rtcc,W          ; fetch RTCC
+004E 0061           00148         clrf    rtcc            ; and reset it
+004F 002F           00149         movwf   lstcntr         ; store for later
+0050 0C6D           00150         movlw   MINHS           ; see if the pulse isn't too short
+0051 008F           00151         subwf   lstcntr,W
+0052 0703           00152         btfss   status,C
+0053 0801           00153         retlw   1               ; pulse shorter than minimum high sync
+0054 0CAB           00154         movlw   MAXHS           ; see if it isn't too long
+0055 008F           00155         subwf   lstcntr,W
+0056 0603           00156         btfsc   status,C
+0057 0802           00157         retlw   2               ; pulse longer than the max. value
+0058 06A6           00158 losyne  btfsc   portb,RCVDAT    ; wait for the low pulse to end (4.8 ms)
+0059 0A5C           00159         goto    rddata          ; check if lo sync valid and read data if yes
+MPASM 02.15 Released         RFREMOTE.ASM   8-24-1998  22:06:22         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+005A 0004           00160         clrwdt
+005B 0A58           00161         goto    losyne          ; keep waiting for low sync end
+005C 0201           00162 rddata  movf    rtcc,W          ; fetch rtcc
+005D 0061           00163         clrf    rtcc            ; and reset it
+005E 002F           00164         movwf   lstcntr         ; store for later
+005F 0C3E           00165         movlw   MINLS           ; see if the pulse isn't too short
+0060 008F           00166         subwf   lstcntr,W
+0061 0703           00167         btfss   status,C
+0062 0803           00168         retlw   3               ; pulse shorter than minimum low sync
+0063 0C57           00169         movlw   MAXLS           ; see if it isn't too long
+0064 008F           00170         subwf   lstcntr,W
+0065 0603           00171         btfsc   status,C
+0066 0804           00172         retlw   4               ; pulse longer than the max. low sync
+                    00173 ; valid sync pulses received, read data
+0067 0C04           00174 rd      movlw   4
+0068 002E           00175         movwf   bytecnt         ; setup byte counter
+0069 0C08           00176 rdbyte  movlw   8
+006A 002D           00177         movwf   bitcnt
+006B 0004           00178 rdbit   clrwdt
+006C 0360           00179         rlf     ind0,F          ; prepare for next bit
+006D 07A6           00180 waitlo  btfss   portb,RCVDAT    ; wait for high part of the pulse to end
+006E 0A71           00181         goto    waithi
+006F 0004           00182         clrwdt
+0070 0A6D           00183         goto    waitlo
+0071 06A6           00184 waithi  btfsc   portb,RCVDAT    ; wait for the low part of the pulse to end
+0072 0A75           00185         goto    gothi
+0073 0004           00186         clrwdt
+0074 0A71           00187         goto    waithi
+0075 0201           00188 gothi   movf    rtcc,W          ; fetch rtcc
+0076 0061           00189         clrf    rtcc            ; and reset it
+0077 002F           00190         movwf   lstcntr         ; store for later
+0078 0C0E           00191         movlw   MINDAT          ; see if it isn't too short
+0079 008F           00192         subwf   lstcntr,W
+007A 0703           00193         btfss   status,C
+007B 0805           00194         retlw   5
+007C 0C2B           00195         movlw   MAXDAT          ; or too long
+007D 008F           00196         subwf   lstcntr,W
+007E 0603           00197         btfsc   status,C
+007F 0806           00198         retlw   6
+0080 0C1B           00199         movlw   DAT             ; see whether it is a 0 or 1
+0081 008F           00200         subwf   lstcntr,W
+0082 0603           00201         btfsc   status,C
+0083 0A86           00202         goto    got1
+0084 0400           00203         bcf     ind0,0
+0085 0A87           00204         goto    nextbit
+0086 0500           00205 got1    bsf     ind0,0
+0087 00ED           00206 nextbit decf    bitcnt,F        ; decrement bit counter
+0088 0743           00207         btfss   status,Z        ; see if bit counter reached zero
+0089 0A6B           00208         goto    rdbit           ; no
+008A 02A4           00209 gotbyt  incf    fsr,F           ; point to the next byte to be received
+008B 00EE           00210         decf    bytecnt,F
+008C 0743           00211         btfss   status,Z        ; see if received all 4 bytes
+008D 0A69           00212         goto    rdbyte          ; no, read next byte
+MPASM 02.15 Released         RFREMOTE.ASM   8-24-1998  22:06:22         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+008E 0004           00213 gotall  clrwdt
+008F 0C11           00214         movlw   RCVDATA         ; point to first byte received
+0090 0024           00215         movwf   fsr
+0091 0240           00216         comf    ind0,W
+0092 02A4           00217         incf    fsr,F           ; point to the second byte
+0093 0180           00218         xorwf   ind0,W
+0094 0743           00219         btfss   status,Z        ; see if correct checksum for first byte
+0095 0807           00220         retlw   7
+0096 02A4           00221         incf    fsr,F           ; point to the third byte
+0097 0240           00222         comf    ind0,W
+0098 02A4           00223         incf    fsr,F           ; point to the fourth byte
+0099 0180           00224         xorwf   ind0,W
+009A 0743           00225         btfss   status,Z        ; see if correct checksum for third byte
+009B 0808           00226         retlw   8
+009C 0211           00227         movf    RCVDATA,W       ; see if the address matches
+009D 0190           00228         xorwf   MY_ID,W
+009E 0743           00229         btfss   status,Z        ; see if it is correct address
+009F 0809           00230         retlw   9
+00A0 0393           00231 switch  swapf   RCVDATA+2,W     ; fetch data byte
+00A1 0E07           00232         andlw   07              ; keep lower 3 bits
+00A2 01E2           00233         addwf   pcl,F
+00A3 0AA7           00234         goto    sw1
+00A4 0AAB           00235         goto    sw2
+00A5 0AAF           00236         goto    sw3
+00A6 0AB3           00237         goto    sw4
+                    00238 
+00A7 0C0C           00239 sw1     movlw   0ch
+00A8 0145           00240         andwf   porta,W
+00A9 0D01           00241         iorlw   1
+00AA 0AB7           00242         goto    setport
+                    00243 
+00AB 0C03           00244 sw2     movlw   03h
+00AC 0145           00245         andwf   porta,W
+00AD 0D04           00246         iorlw   4
+00AE 0AB7           00247         goto    setport
+                    00248 
+00AF 0C0C           00249 sw3     movlw   0ch
+00B0 0145           00250         andwf   porta,W
+00B1 0D02           00251         iorlw   2
+00B2 0AB7           00252         goto    setport
+                    00253 
+00B3 0C03           00254 sw4     movlw   03h
+00B4 0145           00255         andwf   porta,W
+00B5 0D08           00256         iorlw   8
+00B6 0AB7           00257         goto    setport
+                    00258 
+00B7 0025           00259 setport movwf   porta
+                    00260 
+00B8 0881           00261 done    retlw   81h
+                    00262 
+                    00263         END
+MPASM 02.15 Released         RFREMOTE.ASM   8-24-1998  22:06:22         PAGE  6
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+C                                 00000000
+DAT                               0000001B
+EBIT                              00000007
+ECODE                             0000000C
+F                                 00000001
+HIPULS                            00000009
+HISYNC                            000000D8
+LODELV                            00000004
+LONGDEL                           00000064
+LOSYNC                            0000006C
+MAXDAT                            0000002B
+MAXHS                             000000AB
+MAXLS                             00000057
+MINDAT                            0000000E
+MINHS                             0000006D
+MINLS                             0000003E
+MY_ID                             00000010
+ONE                               00000036
+OPTVAL                            00000005
+RCVDAT                            00000005
+RCVDATA                           00000011
+W                                 00000000
+Z                                 00000002
+ZERO                              00000015
+__16C54A                          00000001
+bitcnt                            0000000D
+bytecnt                           0000000E
+delay                             0000003A
+done                              000000B8
+ebcnt                             00000016
+ecnt                              00000015
+err                               00000012
+final                             00000034
+fsr                               00000004
+got1                              00000086
+gotall                            0000008E
+gotbyt                            0000008A
+gothi                             00000075
+gothsyn                           00000048
+gotlsyn                           0000004D
+hdel                              0000003B
+hidel                             00000017
+hsync                             00000044
+ind0                              00000000
+ldel                              0000003D
+lodel                             00000018
+losyne                            00000058
+lstcntr                           0000000F
+main                              0000000B
+nextbit                           00000087
+pcl                               00000002
+porta                             00000005
+portb                             00000006
+MPASM 02.15 Released         RFREMOTE.ASM   8-24-1998  22:06:22         PAGE  7
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+rcvdata                           00000042
+rd                                00000067
+rdbit                             0000006B
+rdbyte                            00000069
+rddata                            0000005C
+ret                               00000041
+rset                              000001FF
+rtcc                              00000001
+sentbyt                           00000030
+setport                           000000B7
+snd                               0000001D
+sndbit                            00000023
+sndbyt                            00000021
+snddel                            0000002B
+status                            00000003
+sw1                               000000A7
+sw2                               000000AB
+sw3                               000000AF
+sw4                               000000B3
+switch                            000000A0
+waithi                            00000071
+waitlo                            0000006D
+wlosyn                            00000049
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0080 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXX-------
+
+All other memory blocks unused.
+
+Program Memory Words Used:   185
+Program Memory Words Free:   327
+
+
+Errors   :     0
+Warnings :     0 reported,     0 suppressed
+Messages :     0 reported,     0 suppressed
+
+

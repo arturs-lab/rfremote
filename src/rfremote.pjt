@@ -1,0 +1,47 @@
+[PROJECT]
+Target=RFREMOTE.HEX
+Development_Mode=48
+Processor=0x654a
+ToolSuite=Microchip
+
+[Directories]
+Include=
+Library=
+LinkerScript=
+
+[Target Data]
+FileList=RFREMOTE.ASM;
+BuildTool=MPASM
+OptionString=/e+;/l+;/x-;/w0;/c+;/m+;/rhex;
+AdditionalOptionString=
+BuildRequired=0
+
+[RFREMOTE.ASM]
+Type=4
+Path=
+FileList=
+BuildTool=
+OptionString=
+AdditionalOptionString=
+
+[mru-list]
+1=c:\pic\files\rfremote\rfremote.asm
+2=c:\pic\files\rfremote\tester.asm
+3=c:\pic\files\irxmit\technic2.asm
+4=c:\pic\files\irxmit\technic1.asm
+
+[Windows]
+4=0000 c:\pic\files\rfremote\rfremote.asm 4 4 591 309 9 0
+3=0010 591 5 1016 416 9 4
+2=0020 6 308 519 533 9 0
+1=0002 c:\PIC\FILES\RFREMOTE\Watch_1.wat 4 535 427 671 9 0
+0=0040 526 420 1014 525 9 4
+Stopwatch=728 592 1022 767 9 0
+
+[Breakpoints]
+0=break1 gotall gotall 0 0
+1=break2 gotbyt gotbyt 0 0
+2=break3 gotlsyn gotlsyn 0 0
+3=break4 err err 1 0
+4=break5 sentbyt sentbyt 1 0
+

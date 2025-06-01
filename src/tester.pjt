@@ -1,0 +1,45 @@
+[PROJECT]
+Target=TESTER.HEX
+Development_Mode=48
+Processor=0x6c84
+ToolSuite=Microchip
+
+[Directories]
+Include=
+Library=
+LinkerScript=
+
+[Target Data]
+FileList=TESTER.ASM;
+BuildTool=MPASM
+OptionString=/e+;/l+;/x-;/w0;/c+;/m+;/rhex;
+AdditionalOptionString=
+BuildRequired=0
+
+[TESTER.ASM]
+Type=4
+Path=
+FileList=
+BuildTool=
+OptionString=
+AdditionalOptionString=
+
+[mru-list]
+1=c:\pic\files\rfremote\tester.asm
+2=c:\pic\files\rfremote\tester.sti
+3=c:\pic\files\rfremote\rfremote.asm
+4=c:\pic\files\rfremote\tester.lst
+5=c:\pic\files\irxmit\technic2.asm
+
+[Windows]
+4=0000 c:\pic\files\rfremote\tester.asm 7 8 531 339 9 0
+3=0002 c:\PIC\FILES\RFREMOTE\Watch_1.wat 337 342 533 477 9 0
+2=0020 6 341 406 671 9 0
+1=0010 534 3 1014 410 9 4
+0=0040 527 412 1015 532 9 4
+Stopwatch=731 604 1025 779 9 0
+Modify=428 574 712 741 9 0
+
+[Breakpoints]
+0=break1 11 11 0 0
+

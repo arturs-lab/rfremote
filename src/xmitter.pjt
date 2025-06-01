@@ -1,0 +1,44 @@
+[PROJECT]
+Target=XMITTER.HEX
+Development_Mode=48
+Processor=0x2509
+ToolSuite=Microchip
+
+[Directories]
+Include=
+Library=
+LinkerScript=
+
+[Target Data]
+FileList=XMITTER.ASM;
+BuildTool=MPASM
+OptionString=/e+;/l+;/x-;/w0;/c+;/m+;/rhex;
+AdditionalOptionString=
+BuildRequired=0
+
+[XMITTER.ASM]
+Type=4
+Path=
+FileList=
+BuildTool=
+OptionString=
+AdditionalOptionString=
+
+[mru-list]
+1=c:\pic\files\rfremote\xmitter.asm
+2=c:\pic\files\rfremote\rfremote.asm
+3=c:\pic\files\rfremote\tester.asm
+4=c:\pic\files\irxmit\technic2.asm
+5=c:\pic\files\irxmit\technic1.asm
+
+[Windows]
+3=0000 c:\pic\files\rfremote\xmitter.asm 2 3 531 373 9 0
+2=0010 530 4 1010 373 9 4
+1=0020 4 444 404 669 9 0
+0=0040 528 377 1016 512 9 4
+Stopwatch=726 590 1020 765 9 0
+Modify=435 585 719 752 9 0
+
+[Breakpoints]
+0=break1 0d 0d 1 0
+1=break2 final final 1 0

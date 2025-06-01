@@ -1,0 +1,5 @@
+! Stimulus file for tester.ASM									
+
+STEP	RB7	RB6	RB5	RB4	RB3	RB2	RB1	RB0	! PortB Pins
+1	1	1	0	1	0	1	1	1	
+10	1	1	1	1	1	1	0	1	

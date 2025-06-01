@@ -1,0 +1,214 @@
+MPASM 02.15 Released           TESTER.ASM   8-23-1998  18:53:35         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                    00001         LIST    p=PIC16C84
+                    00002 
+  00000000          00003 ind0    equ     00h             ; index register
+  00000001          00004 rtcc    equ     01h             ; real time clock counter
+  00000002          00005 pcl     equ     02h             ; program counter low byte
+  00000003          00006 status  equ     03h             ; status register
+  00000004          00007 fsr     equ     04h             ; file select register
+  00000005          00008 porta   equ     05h             ; port A
+  00000006          00009 portb   equ     06h             ; port B
+  0000000B          00010 intcon  equ     0bh             ; interrupt control
+                    00011 
+  0000000C          00012 SNDDATA equ     0ch             ; space for sent data
+  00000010          00013 lstcntr equ     10h             ; last rtcc value
+  00000011          00014 bitcnt  equ     11h             ; bit counter for sent data
+  00000012          00015 bytecnt equ     12h             ; byte counter for sent data
+  00000013          00016 flags   equ     13h             ; flags register
+  00000014          00017 hidel   equ     14h             ; delay counters
+  00000015          00018 lodel   equ     15h
+  00000016          00019 tmp     equ     16h
+                    00020 
+  00000000          00021 done    equ     0               ; "count finished" flag in flags register
+                    00022 
+  00000000          00023 C       equ     0               ; status register CARRY bit
+  00000002          00024 Z       equ     2               ; ZERO bit
+                    00025 
+  00000000          00026 W       equ     0               ; W is destination
+  00000001          00027 F       equ     1               ; F is destination
+                    00028 
+  00000085          00029 OPTVAL  equ     85h             ; option register
+  00000000          00030 INTVAL  equ     0h              ; interrupt enable register
+                    00031 
+  000000F4          00032 HISYNC  equ     0f4h            ; 9 ms
+  00000082          00033 LOSYNC  equ     82h             ; 4.8 ms
+  00000009          00034 HIPULS  equ     9h              ; 330 us
+  00000015          00035 ZERO    equ     15h             ; 800 us
+  00000036          00036 ONE     equ     36h             ; 2 ms
+  00000064          00037 LONGDEL equ     64h
+  0000000B          00038 LODELV  equ     0bh
+                    00039 
+0000                00040         org     0
+0000 0103           00041 start   clrw
+0001 0085           00042         movwf   porta           ; reset port a outputs
+Warning[224]: Use of this instruction is not recommended.
+0002 0065           00043         tris    porta           ; port a all outputs
+0003 30FF           00044         movlw   0ffh
+Warning[224]: Use of this instruction is not recommended.
+0004 0066           00045         tris    portb           ; port b all inputs
+0005 3085           00046         movlw   OPTVAL          ; configure option register
+Warning[224]: Use of this instruction is not recommended.
+0006 0062           00047         option
+0007 3000           00048         movlw   INTVAL          ; disable interrupts
+0008 008B           00049         movwf   intcon
+                    00050 
+MPASM 02.15 Released           TESTER.ASM   8-23-1998  18:53:35         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0009 3080           00051 loop    movlw   80h             ; set up data to be sent
+000A 008C           00052         movwf   SNDDATA
+000B 090C           00053         comf    SNDDATA,W
+000C 008D           00054         movwf   SNDDATA+1
+000D 0906           00055 key     comf    portb,W         ; read state of port b
+000E 3903           00056         andlw   03h             ; keep lower 2 bits
+000F 1903           00057         btfsc   status,Z
+0010 280D           00058         goto    key             ; wait for a button
+                    00059         ;movlw  1               ; FOR TESTING ONLY
+0011 008E           00060         movwf   SNDDATA+2
+0012 038E           00061         decf    SNDDATA+2,F
+0013 0E8E           00062         swapf   SNDDATA+2,F
+0014 090E           00063         comf    SNDDATA+2,W
+0015 008F           00064         movwf   SNDDATA+3
+                    00065 
+0016 300C           00066         movlw   SNDDATA
+0017 0084           00067         movwf   fsr
+0018 1405           00068         bsf     porta,0         ; start hi sync pulse
+0019 30F4           00069         movlw   HISYNC
+001A 203F           00070         call    delay
+001B 1005           00071         bcf     porta,0
+001C 3082           00072         movlw   LOSYNC
+001D 203F           00073         call    delay
+001E 3004           00074 snd     movlw   4
+001F 0092           00075         movwf   bytecnt
+0020 3008           00076 sndbyt  movlw   8
+0021 0091           00077         movwf   bitcnt
+0022 1405           00078 sndbit  bsf     porta,0
+0023 3009           00079         movlw   HIPULS
+0024 203F           00080         call    delay
+0025 1005           00081         bcf     porta,0
+0026 1B80           00082         btfsc   ind0,7
+0027 282A           00083         goto    isone
+0028 3015           00084         movlw   ZERO
+0029 282B           00085         goto    snddel
+002A 3036           00086 isone   movlw   ONE
+002B 203F           00087 snddel  call    delay
+002C 0D80           00088         rlf     ind0,F
+002D 0391           00089         decf    bitcnt,F
+002E 1D03           00090         btfss   status,Z
+002F 2822           00091         goto    sndbit
+0030 0A84           00092 sentbyt incf    fsr,F
+0031 0392           00093         decf    bytecnt,F
+0032 1D03           00094         btfss   status,Z
+0033 2820           00095         goto    sndbyt
+0034 1405           00096 final   bsf     porta,0
+0035 3009           00097         movlw   HIPULS
+0036 203F           00098         call    delay
+0037 1005           00099         bcf     porta,0
+                    00100 
+0038 3064           00101 sentall movlw   LONGDEL
+0039 0096           00102         movwf   tmp
+003A 30F4           00103 lngdel  movlw   HISYNC
+MPASM 02.15 Released           TESTER.ASM   8-23-1998  18:53:35         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+003B 203F           00104         call    delay
+003C 0B96           00105         decfsz  tmp,F
+003D 283A           00106         goto    lngdel
+003E 2809           00107 endprog goto    loop
+                    00108 
+                    00109 ; (lodel + 5) * hidel + 6
+003F 0094           00110 delay   movwf   hidel           ; 1
+0040 300B           00111 hdel    movlw   LODELV          ; 1                             }
+0041 0095           00112         movwf   lodel           ; 1                             }
+0042 0B95           00113 ldel    decfsz  lodel,F         ; 1/2   lodel+1 }               }
+0043 2842           00114         goto    ldel            ; 2             }3lodel-1       }
+0044 0B94           00115         decfsz  hidel,F         ; 1/2                           }(3lodel-1+5)hidel+1
+0045 2840           00116         goto    hdel            ; 2                             }
+0046 0008           00117 ret     return                  ; 2
+                    00118 
+                    00119         END
+MPASM 02.15 Released           TESTER.ASM   8-23-1998  18:53:35         PAGE  4
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+C                                 00000000
+F                                 00000001
+HIPULS                            00000009
+HISYNC                            000000F4
+INTVAL                            00000000
+LODELV                            0000000B
+LONGDEL                           00000064
+LOSYNC                            00000082
+ONE                               00000036
+OPTVAL                            00000085
+SNDDATA                           0000000C
+W                                 00000000
+Z                                 00000002
+ZERO                              00000015
+__16C84                           00000001
+bitcnt                            00000011
+bytecnt                           00000012
+delay                             0000003F
+done                              00000000
+endprog                           0000003E
+final                             00000034
+flags                             00000013
+fsr                               00000004
+hdel                              00000040
+hidel                             00000014
+ind0                              00000000
+intcon                            0000000B
+isone                             0000002A
+key                               0000000D
+ldel                              00000042
+lngdel                            0000003A
+lodel                             00000015
+loop                              00000009
+lstcntr                           00000010
+pcl                               00000002
+porta                             00000005
+portb                             00000006
+ret                               00000046
+rtcc                              00000001
+sentall                           00000038
+sentbyt                           00000030
+snd                               0000001E
+sndbit                            00000022
+sndbyt                            00000020
+snddel                            0000002B
+start                             00000000
+status                            00000003
+tmp                               00000016
+MPASM 02.15 Released           TESTER.ASM   8-23-1998  18:53:35         PAGE  5
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+
+0000 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXX--------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    71
+Program Memory Words Free:   953
+
+
+Errors   :     0
+Warnings :     3 reported,     0 suppressed
+Messages :     0 reported,     0 suppressed
+
+

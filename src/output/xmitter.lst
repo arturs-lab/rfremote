@@ -1,0 +1,209 @@
+MPASM 02.15 Released          XMITTER.ASM   8-25-1998  9:30:33         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                    00001         LIST    p=PIC12C509
+                    00002 
+  00000000          00003 ind0    equ     00h             ; index register
+  00000001          00004 rtcc    equ     01h             ; real time clock counter
+  00000002          00005 pcl     equ     02h             ; program counter low byte
+  00000003          00006 status  equ     03h             ; status register
+  00000004          00007 fsr     equ     04h             ; file select register
+  00000005          00008 osccal  equ     05h             ; port A
+  00000006          00009 portb   equ     06h             ; port B
+                    00010 
+  0000000C          00011 SNDDATA equ     0ch             ; space for sent data
+  00000010          00012 lstcntr equ     10h             ; last rtcc value
+  00000011          00013 bitcnt  equ     11h             ; bit counter for sent data
+  00000012          00014 bytecnt equ     12h             ; byte counter for sent data
+  00000013          00015 hidel   equ     13h             ; delay counters
+  00000014          00016 lodel   equ     14h
+  00000015          00017 tmp     equ     15h
+  00000016          00018 flags   equ     16h             ; flags register
+                    00019 
+  00000000          00020 done    equ     0               ; "count finished" flag in flags register
+                    00021 
+  00000000          00022 C       equ     0               ; status register CARRY bit
+  00000002          00023 Z       equ     2               ; ZERO bit
+                    00024 
+  00000000          00025 W       equ     0               ; W is destination
+  00000001          00026 F       equ     1               ; F is destination
+                    00027 
+  000000F4          00028 HISYNC  equ     0f4h            ; 9 ms
+  00000082          00029 LOSYNC  equ     82h             ; 4.8 ms
+  00000009          00030 HIPULS  equ     9h              ; 330 us
+  00000015          00031 ZERO    equ     15h             ; 800 us
+  00000036          00032 ONE     equ     36h             ; 2 ms
+  00000006          00033 LONGDEL equ     06h
+  0000000B          00034 LODELV  equ     0bh
+                    00035 
+  00000080          00036 MY_ID   equ     80h             ; remote address
+                    00037 
+0000                00038         org     0
+0000 0025           00039 start   movwf   osccal
+0001 0040           00040         clrw
+0002 0026           00041         movwf   portb           ; reset port a outputs
+0003 0C1F           00042         movlw   b'00011111'     ; configure I/O directions
+0004 0006           00043         tris    portb
+0005 0C85           00044         movlw   b'10000101'     ; configure option register
+0006 0002           00045         option
+                    00046 
+0007 0C06           00047 loop    movlw   LONGDEL         ; delay between transmissions and
+0008 0035           00048         movwf   tmp             ; to initially debounce buttons
+0009 0CF4           00049 lngdel  movlw   HISYNC
+000A 093F           00050         call    delay
+000B 02F5           00051         decfsz  tmp,F
+000C 0A09           00052         goto    lngdel
+                    00053 
+MPASM 02.15 Released          XMITTER.ASM   8-25-1998  9:30:33         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+000D 0C80           00054         movlw   MY_ID           ; set up data to be sent
+000E 002C           00055         movwf   SNDDATA
+000F 024C           00056         comf    SNDDATA,W
+0010 002D           00057         movwf   SNDDATA+1
+0011 0706           00058 key     btfss   portb,0         ; read state of port b
+0012 0A17           00059         goto    xmit0           ; transmit code "0"
+0013 0626           00060         btfsc   portb,1
+0014 0A11           00061         goto    key             ; wait for the button
+0015 0C03           00062 xmit3   movlw   3
+0016 0A18           00063         goto    xmit
+0017 0C00           00064 xmit0   movlw   0
+0018 002E           00065 xmit    movwf   SNDDATA+2
+0019 03AE           00066         swapf   SNDDATA+2,F
+001A 024E           00067         comf    SNDDATA+2,W
+001B 002F           00068         movwf   SNDDATA+3
+                    00069 
+001C 0C0C           00070         movlw   SNDDATA
+001D 0024           00071         movwf   fsr
+001E 05A6           00072         bsf     portb,5         ; start hi sync pulse
+001F 0CF4           00073         movlw   HISYNC
+0020 093F           00074         call    delay
+0021 04A6           00075         bcf     portb,5
+0022 0C82           00076         movlw   LOSYNC
+0023 093F           00077         call    delay
+0024 0C04           00078 snd     movlw   4
+0025 0032           00079         movwf   bytecnt
+0026 0C08           00080 sndbyt  movlw   8
+0027 0031           00081         movwf   bitcnt
+0028 05A6           00082 sndbit  bsf     portb,5
+0029 0C09           00083         movlw   HIPULS
+002A 093F           00084         call    delay
+002B 04A6           00085         bcf     portb,5
+002C 06E0           00086         btfsc   ind0,7
+002D 0A30           00087         goto    isone
+002E 0C15           00088         movlw   ZERO
+002F 0A31           00089         goto    snddel
+0030 0C36           00090 isone   movlw   ONE
+0031 093F           00091 snddel  call    delay
+0032 0360           00092         rlf     ind0,F
+0033 00F1           00093         decf    bitcnt,F
+0034 0743           00094         btfss   status,Z
+0035 0A28           00095         goto    sndbit
+0036 02A4           00096 sentbyt incf    fsr,F
+0037 00F2           00097         decf    bytecnt,F
+0038 0743           00098         btfss   status,Z
+0039 0A26           00099         goto    sndbyt
+003A 05A6           00100 final   bsf     portb,5
+003B 0C09           00101         movlw   HIPULS
+003C 093F           00102         call    delay
+003D 04A6           00103         bcf     portb,5
+                    00104 
+003E 0A07           00105 endprog goto    loop
+                    00106 
+MPASM 02.15 Released          XMITTER.ASM   8-25-1998  9:30:33         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                    00107 ; (lodel + 5) * hidel + 6
+003F 0033           00108 delay   movwf   hidel           ; 1
+0040 0C0B           00109 hdel    movlw   LODELV          ; 1                             }
+0041 0034           00110         movwf   lodel           ; 1                             }
+0042 02F4           00111 ldel    decfsz  lodel,F         ; 1/2   lodel+1 }               }
+0043 0A42           00112         goto    ldel            ; 2             }3lodel-1       }
+0044 02F3           00113         decfsz  hidel,F         ; 1/2                           }(3lodel-1+5)hidel+1
+0045 0A40           00114         goto    hdel            ; 2                             }
+0046 0800           00115 ret     return                  ; 2
+                    00116 
+                    00117         END
+MPASM 02.15 Released          XMITTER.ASM   8-25-1998  9:30:33         PAGE  4
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+C                                 00000000
+F                                 00000001
+HIPULS                            00000009
+HISYNC                            000000F4
+LODELV                            0000000B
+LONGDEL                           00000006
+LOSYNC                            00000082
+MY_ID                             00000080
+ONE                               00000036
+SNDDATA                           0000000C
+W                                 00000000
+Z                                 00000002
+ZERO                              00000015
+__12C509                          00000001
+bitcnt                            00000011
+bytecnt                           00000012
+delay                             0000003F
+done                              00000000
+endprog                           0000003E
+final                             0000003A
+flags                             00000016
+fsr                               00000004
+hdel                              00000040
+hidel                             00000013
+ind0                              00000000
+isone                             00000030
+key                               00000011
+ldel                              00000042
+lngdel                            00000009
+lodel                             00000014
+loop                              00000007
+lstcntr                           00000010
+osccal                            00000005
+pcl                               00000002
+portb                             00000006
+ret                               00000046
+rtcc                              00000001
+sentbyt                           00000036
+snd                               00000024
+sndbit                            00000028
+sndbyt                            00000026
+snddel                            00000031
+start                             00000000
+status                            00000003
+tmp                               00000015
+xmit                              00000018
+xmit0                             00000017
+xmit3                             00000015
+MPASM 02.15 Released          XMITTER.ASM   8-25-1998  9:30:33         PAGE  5
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+
+0000 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXX--------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:    71
+Program Memory Words Free:   953
+
+
+Errors   :     0
+Warnings :     0 reported,     0 suppressed
+Messages :     0 reported,     0 suppressed
+
+
